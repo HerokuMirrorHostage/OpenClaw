@@ -1,0 +1,53 @@
+name: Rooted Android Cloud
+
+on:
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y wget unzip qemu-kvm libvirt-daemon-system \
+          libvirt-clients bridge-utils novnc websockify x11vnc fluxbox
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install system image
+        run: |
+          sdkmanager "system-images;android-33;google_apis;x86_64"
+          echo "no" | avdmanager create avd -n rooted -k \
+          "system-images;android-33;google_apis;x86_64" --force
+
+      - name: Start emulator
+        run: |
+          emulator -avd rooted -no-audio -no-window -gpu swiftshader_indirect &
+          adb wait-for-device
+          adb root || true
+          adb remount || true
+
+      - name: Start VNC display
+        run: |
+          Xvfb :0 -screen 0 1280x800x16 &
+          export DISPLAY=:0
+          fluxbox &
+          x11vnc -display :0 -nopw -forever -shared &
+
+      - name: Start noVNC
+        run: |
+          websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
+
+      - name: Install Cloudflared
+        run: |
+          wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+
+      - name: Start Cloudflare Tunnel
+        run: |
+          cloudflared tunnel --url http://localhost:6080
