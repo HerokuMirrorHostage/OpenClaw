@@ -1,0 +1,42 @@
+name: n8n Cloudflare Host
+
+on:
+  workflow_dispatch:
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Install Docker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y docker.io wget
+          sudo systemctl start docker
+
+      - name: Start n8n
+        run: |
+          sudo docker run -d \
+            -p 5678:5678 \
+            -e N8N_HOST=0.0.0.0 \
+            -e N8N_PORT=5678 \
+            -e N8N_PROTOCOL=http \
+            --name n8n \
+            n8nio/n8n
+          sleep 15
+          sudo lsof -i -P -n | grep LISTEN
+
+      - name: Install Cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+
+      - name: Start Cloudflare Tunnel
+        run: |
+          nohup cloudflared tunnel --url http://localhost:5678 > tunnel.log 2>&1 &
+          sleep 10
+          grep -o 'https://[a-zA-Z0-9\-]*\.trycloudflare\.com' tunnel.log || echo "Tunnel URL not found"
+
+      - name: Keep Alive
+        run: sleep 21600
