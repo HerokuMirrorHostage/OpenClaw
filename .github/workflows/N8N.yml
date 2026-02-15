@@ -9,23 +9,17 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Install Docker
+      - name: Start n8n Container
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y docker.io wget
-          sudo systemctl start docker
-
-      - name: Start n8n
-        run: |
-          sudo docker run -d \
+          docker run -d \
             -p 5678:5678 \
             -e N8N_HOST=0.0.0.0 \
             -e N8N_PORT=5678 \
             -e N8N_PROTOCOL=http \
             --name n8n \
             n8nio/n8n
-          sleep 15
-          sudo lsof -i -P -n | grep LISTEN
+          sleep 20
+          docker ps
 
       - name: Install Cloudflared
         run: |
