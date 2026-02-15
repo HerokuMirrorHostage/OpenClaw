@@ -1,0 +1,41 @@
+name: OpenClaw
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Install Node
+        run: |
+          sudo apt-get update -qq
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs wget socat
+
+      - name: Install OpenClaw
+        run: |
+          curl -fsSL https://openclaw.ai/install.sh | bash
+
+      - name: Install Cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
+
+      - name: Start OpenClaw
+        run: |
+          nohup openclaw > openclaw.log 2>&1 &
+          sleep 10
+
+      - name: Detect Port and Start Tunnel
+        run: |
+          PORT=$(sudo lsof -i -P -n | grep LISTEN | grep node | awk '{print $9}' | sed 's/.*://')
+          echo "Detected Port: $PORT"
+          cloudflared tunnel --url http://localhost:$PORT > tunnel.log 2>&1 &
+          sleep 10
+          grep -o 'https://[a-zA-Z0-9\-]*\.trycloudflare\.com' tunnel.log || echo "Tunnel URL not found"
+
+      - name: Keep Alive
+        run: sleep 21600
